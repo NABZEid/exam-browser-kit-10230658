@@ -1,0 +1,63 @@
+name: Build APK
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Siapkan proyek Flutter
+        run: |
+          set -e
+          PUB=$(find . -name pubspec.yaml -not -path './.github/*' -not -path '*/.dart_tool/*' | head -n 1)
+          if [ -z "$PUB" ]; then echo "pubspec.yaml tidak ditemukan"; exit 1; fi
+          ROOT=$(dirname "$PUB")
+          cd "$ROOT"
+          if [ -f main.dart ] && [ ! -d lib ]; then mkdir lib; mv main.dart lib/main.dart; fi
+          if [ ! -d android ]; then
+            NAME=$(grep -m1 '^name:' pubspec.yaml | awk '{print $2}' | tr -d '\r')
+            cp pubspec.yaml /tmp/pubspec.yaml.bak
+            cp -r lib /tmp/lib.bak
+            flutter create . --platforms=android --org com.examsafe --project-name "$NAME"
+            cp /tmp/pubspec.yaml.bak pubspec.yaml
+            rm -rf lib
+            cp -r /tmp/lib.bak lib
+            rm -rf test
+            if [ -f AndroidManifest.xml ]; then cp AndroidManifest.xml android/app/src/main/AndroidManifest.xml; fi
+            if [ -f MainActivity.kt ]; then
+              D="android/app/src/main/kotlin/com/examsafe/$NAME"
+              mkdir -p "$D"
+              cp MainActivity.kt "$D/MainActivity.kt"
+            fi
+          fi
+          echo "PROJECT_DIR=$ROOT" >> "$GITHUB_ENV"
+      - name: Build APK
+        run: |
+          set -e
+          cd "$PROJECT_DIR"
+          if [ -f android/gradlew ]; then chmod +x android/gradlew; fi
+          flutter pub get
+          flutter build apk --release
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/out/app-release.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: out/app-release.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: APK build #${{ github.run_number }}
+          files: out/app-release.apk

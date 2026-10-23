@@ -1,0 +1,17 @@
+name: exam_browser
+description: Exam Browser - browser ujian aman untuk Android dan Windows.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  webview_flutter: ^4.9.0
+  webview_windows: ^0.4.0
+  window_manager: ^0.4.0
+
+flutter:
+  uses-material-design: true
